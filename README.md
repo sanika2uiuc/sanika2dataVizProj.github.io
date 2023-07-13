@@ -1,1 +1,1 @@
-# cs416datavisualization
+# CS 416 Data Visualization
