@@ -1,0 +1,245 @@
+<html>
+<script src='https://d3js.org/d3.v5.min.js'></script>
+<script src="https://rawgit.com/susielu/d3-annotation/master/d3-annotation.min.js"></script>
+<style>
+    circle {
+        fill: lightblue;
+        stroke: black;
+    }
+</style>
+
+<body onload='init()'>
+    <button style="background-color:green; color:white" onclick="location.href = '1.html';" id="myButton" class="float-right submit-button">Prev</button>
+    <button style="background-color:green; color:white" onclick="location.href = '3.html';" id="myButton" class="float-right submit-button">Next</button>
+    <br>
+    <div class="mySlides fade">
+        <div class="numbertext">2 / 3</div>
+    </div>
+    <p> Let's start by selecting whether you want the charts to show highway MPG or city MPG.
+        <br> <span class="glyphicon glyphicon-info-sign"></span>
+        <b>Please make your selection to see how the chart changes.</b>
+        <select id="dropdown"> </select>
+    </p>
+
+    <p>
+        We had a hypothesis that a higher number of cylinders results in a lower fuel mileage. 
+        As we can see in this chart, the trend is not perfectly linear (just because car A has more
+        number of cylinders than car B does not mean it has a lower fuel mileage). However, we do see a
+         inverse trend where reducing the number of cylinders does seem to increase the fuel mileage.
+    </p>
+
+    <svg id="visual" width=500 height=500>
+    </svg>
+    <script>
+        async function init() {
+            const data = await d3.csv('https://flunky.github.io/cars2017.csv');
+
+            const averageCityMPG = data.map(d => +d.AverageCityMPG);
+            const averageHighwayMPG = data.map(d => +d.AverageHighwayMPG);
+
+            var cxs = d3.scaleLog()
+                .base(10)
+                .domain([10, 150])
+                .range([0, 400]);
+            // List of groups (here I have one group per column)
+            var allGroup = ["Highway", "City"]
+
+            // add the options to the button
+            d3.select("#dropdown")
+                .selectAll('myOptions')
+                .data(allGroup)
+                .enter()
+                .append('option')
+                .text(function (d) { return d; }) // text showed in the menu
+                .attr("value", function (d) { return d; }) // corresponding value returned by the button
+
+            
+            // When the button is changed, run the updateChart function
+            d3.select("#dropdown").on("change", function (d) {
+                // recover the option that has been chosen
+                var selectedOption = d3.select(this).property("value")
+
+                // run the updateChart function with this selected option
+                update(selectedOption)
+            })
+
+            const mpg = averageHighwayMPG;
+            
+            const xs = mpg.map(value => cxs(value));
+            console.log(d3.select("#dropdown").property("value"))
+
+            var cys = d3.scaleLinear()
+                .domain([0, 15])
+                .range([400, 0]);
+            
+            const engineCylinders = data.map(d => +d.EngineCylinders);
+            const ys = engineCylinders.map(value => cys(value));
+
+            const fuel = data.map(d => d.Fuel);
+            const manufacturer = data.map(d => d.Make);
+
+            //Concats relevant fields for annotation
+            function concatArrs(a, b, c) {
+                x = a.map((name, index) => `${name} ${b[index]}`);
+                return x.map((name, index) => `${name} ${c[index]}`);
+            }
+
+            const cars = concatArrs(manufacturer, fuel, engineCylinders)
+            //Electric car by Tesla - keycar value 1 
+            //4-cylinder Diesel car by Chevrolet - keycar value 2
+            //4-cylinder Gasoline car by Ram - keycar value 3
+            //8-cylinder Gasoline car by Lamborghini - keycar value 4
+            //Everything else is 0
+            const keycars = cars.map(function (d) {
+                if (d == "Tesla Electricity 0") {
+                    return 1
+                }
+                else if (d == "Chevrolet Diesel 4") {
+                    return 2
+                }
+                else if (d == "Ram Gasoline 4") {
+                    return 3
+                }
+                else if (d == "Lamborghini Gasoline 10") {
+                    return 4
+                }
+                else {
+                    return 0
+                }
+            });
+
+            console.log(keycars)
+
+
+            const color = fuel.map(function (d) {
+                if (d == "Gasoline") {
+                    return "orange"
+                }
+                else if (d == "Diesel") {
+                    return "green"
+                }
+                else {
+                    return "blue"
+                }
+            });
+
+            var margin = 50;
+            var svg = d3.select("svg"),
+                margin = 50,
+                width = svg.attr("width") - 2 * margin,
+                height = svg.attr("height") - 2 * margin;
+            var g = svg.append("g").attr("transform", "translate(" + margin + "," + margin + ")");
+
+            var chart = g.selectAll('circle')
+                .data(data)
+                .enter()
+                .append('circle')
+                .attr('cx', function (d, i) { return xs[i]; })
+                .attr('cy', function (d, i) { return ys[i]; })
+                .attr('r', function (d, i) { return 5; })
+                .style("fill", function (d, i) { return color[i]; });
+            
+            svg.append("g")
+                .attr("transform", "translate(" + margin + "," + margin + ")")
+                .call(d3.axisLeft(cys).tickFormat(function (d) { return d; })
+                    .tickValues([0, 2, 3, 4, 6, 8, 10, 12]));
+
+            svg.append("text")
+                .attr("class", "y label")
+                .attr("text-anchor", "end")
+                .attr("x", (-3.5 * margin))
+                .attr("y", (margin - 30))
+                .attr("transform", "rotate(-90)")
+                .text("Number of cylinders");
+
+            svg.append("g")
+                .attr("transform", "translate(" + margin + "," + (height + margin) + ")")
+                .call(d3.axisBottom(cxs).tickFormat(function (d) { return d; }).tickValues([10, 20, 50, 100]));
+            
+            var ytext = svg.append("text")
+                .attr("class", "x label")
+                .attr("text-anchor", "end")
+                .attr("x", (margin + 9 * width / 16))
+                .attr("y", (margin + height + 30))
+                .text("Highway MPG");
+            
+            //Annotations
+            secondChartAnnotation(keycars, manufacturer, fuel, xs, ys, 50, "init");
+            function secondChartAnnotation(keycars, manufacturer, fuel, xs, ys, margin, param) {
+                d3.select(".annotations").remove(); 
+                d3.select(".annotations").remove(); 
+                d3.select(".annotations").remove(); 
+                d3.select(".annotations").remove(); 
+                for (i in keycars) {
+                    if (keycars[i] > 0) {
+                        const direction = (fuel[i] == "Gasoline") ? -50 : 50;
+                        const annotations = [
+                            {
+                                note: {
+                                    label: manufacturer[i],
+                                    title: fuel[i],
+                                },
+                                x: xs[i],
+                                y: ys[i],
+                                dx: direction,
+                                dy: -60,
+                                color: "red",
+                                type: d3.annotationLabel,
+                                subject: {
+                                    radius: 10,
+                                    radiusPadding: 5,
+                                    fill: 'red',
+                                },
+                            },
+                        ];
+
+                        const makeAnnotations = d3.annotation().annotations(annotations);
+                        if(param == "init") {
+                            console.log("init")
+                            
+                            d3.select('svg').append('g')
+                                .attr("transform", "translate(" + (margin) + "," + (margin) + ")")
+                                .attr("class", "annotations")
+                                .call(makeAnnotations);
+                        }
+                        else {
+                            d3.select('svg').append('g')
+                                .attr("transform", "translate(" + (margin) + "," + (margin) + ")")
+                                .attr("class", "annotations")
+                                .call(makeAnnotations);
+                        }
+                    }
+                }
+            }              
+            
+            // A function that update the chart
+            function update(selectedGroup) {
+
+                // Create new data with the selection?
+                if (selectedGroup == "Highway") {
+                    var mpg = averageHighwayMPG;
+                }
+                else {
+                    var mpg = averageCityMPG;
+                }
+                console.log(selectedGroup)
+                const xs = mpg.map(value => cxs(value));
+                
+                secondChartAnnotation(keycars, manufacturer, fuel, xs, ys, 50, "update");
+                
+                // Give these new data to update line
+                chart
+                    .transition()
+                    .duration(100)
+                    .attr('cx', function (d, i) { return xs[i]; })
+                    .attr('cy', function (d, i) { return ys[i]; })
+                    .attr('r', function (d, i) { return 5; })
+                    .style("fill", function (d, i) { return color[i]; });   
+                    
+                ytext.text(selectedGroup.concat(" MPG"));
+            }
+        }
+    </script>
+</body>
+
+</html>
